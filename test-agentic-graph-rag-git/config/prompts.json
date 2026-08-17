@@ -1,0 +1,122 @@
+{
+  "version": 2,
+  "openai": {
+    "router_system_prompt": "You are a routing agent. Analyze the user query and route it to the appropriate component or retrieve relevant information from the knowledge graph.",
+    "cypher_system_prompt": "You are a Neo4j Cypher query generator. Convert natural language queries into accurate Cypher queries. Ensure the queries are syntactically correct and optimized.",
+    "corrector_system_prompt": "You are a Cypher query corrector. Review and fix incorrect or suboptimal Cypher queries. Provide explanations for corrections.",
+    "synthesis_system_prompt": "You are a helpful assistant that synthesizes information from multiple sources into clear, accurate, and well-structured answers. Always cite your sources.",
+    "decomposer_system_prompt": "You are a search query decomposer for a RAG system. Given a query, generate different search sub-queries that together cover ALL aspects of the original question. Each sub-query should focus on a DIFFERENT section, component, or angle. For enumeration queries (list all, describe all), each sub-query should target a DIFFERENT item from the expected list.",
+    "entity_extraction_system_prompt": "You are an entity extraction expert. Extract important entities and direct relationships explicitly supported by the text. Do not invent entities. Do not invent relationships. Prefer concrete domain-important concepts such as entities, objects, processes, structures, symptoms, products, people, organizations, technical concepts, locations, events, etc.",
+    "relationship_discovery_system_prompt": "You are a semantic relationship discovery system. Your task is to identify SHORT, REUSABLE predicates that describe connections between entities in a knowledge graph. Extract only relationships explicitly supported by the text. Return valid JSON with the following schema: {\"relationships\": [{\"source\": \"entity\", \"target\": \"entity\", \"relation\": \"PREDICATE\", \"description\": \"brief explanation\"}]}. Each relation must be 1-5 words in SNAKE_CASE format. Do not copy source text verbatim. Prioritize semantic precision over quantity. Return empty list if no valid relationships found."
+  },
+  "relationship_discovery_examples": {
+    "technical_domain": {
+      "good_relations": [
+        "INTRODUCES",
+        "BUILDS_ON",
+        "SOLVES",
+        "ENABLES",
+        "IMPLEMENTS",
+        "IMPROVES",
+        "COMBINES",
+        "EXTENDS",
+        "DEFINES",
+        "RELATES_TO",
+        "DEPENDS_ON",
+        "PROVIDES",
+        "USES",
+        "ADDRESSES",
+        "INTEGRATES",
+        "PROPOSES",
+        "CONTRASTS_WITH"
+      ],
+      "bad_relations": [
+        "RELATED_TO",
+        "THING",
+        "CONNECTION",
+        "STUFF",
+        "ASSOCIATED",
+        "MENTIONED_WITH",
+        "AND",
+        "OR",
+        "IS"
+      ],
+      "examples": [
+        {
+          "text": "Graph RAG adds a structured layer of entities and relationships extracted from documents.",
+          "entities": ["Graph RAG", "entities", "relationships"],
+          "correct": [
+            {
+              "source": "Graph RAG",
+              "target": "entities",
+              "relation": "EXTRACTS",
+              "reasoning": "Graph RAG explicitly extracts entities from documents"
+            },
+            {
+              "source": "Graph RAG",
+              "target": "relationships",
+              "relation": "EXTRACTS",
+              "reasoning": "Graph RAG explicitly extracts relationships from documents"
+            },
+            {
+              "source": "entities",
+              "target": "relationships",
+              "relation": "CONNECTED_BY",
+              "reasoning": "In Graph RAG, entities are connected through relationships"
+            }
+          ],
+          "incorrect": [
+            {
+              "source": "Graph RAG",
+              "target": "structured layer",
+              "relation": "ADDS_LAYER",
+              "problem": "Too specific to this text, not reusable"
+            },
+            {
+              "source": "entities",
+              "target": "documents",
+              "relation": "EXTRACTED_FROM_DOCUMENTS",
+              "problem": "Too long, should be just EXTRACTED_FROM"
+            }
+          ]
+        },
+        {
+          "text": "Skeleton indexing builds a KNN graph from chunk embeddings and performs full entity extraction only on top-ranked chunks.",
+          "entities": ["skeleton indexing", "KNN graph", "chunk embeddings", "entity extraction"],
+          "correct": [
+            {
+              "source": "skeleton indexing",
+              "target": "KNN graph",
+              "relation": "BUILDS",
+              "reasoning": "Skeleton indexing builds a KNN graph"
+            },
+            {
+              "source": "KNN graph",
+              "target": "chunk embeddings",
+              "relation": "CONSTRUCTED_FROM",
+              "reasoning": "KNN graph is constructed from embeddings"
+            }
+          ]
+        },
+        {
+          "text": "The agentic router classifies queries into types and selects the appropriate retrieval tool based on classification.",
+          "entities": ["agentic router", "queries", "retrieval tool"],
+          "correct": [
+            {
+              "source": "agentic router",
+              "target": "queries",
+              "relation": "CLASSIFIES",
+              "reasoning": "Router explicitly classifies queries"
+            },
+            {
+              "source": "agentic router",
+              "target": "retrieval tool",
+              "relation": "SELECTS",
+              "reasoning": "Router selects retrieval tools"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

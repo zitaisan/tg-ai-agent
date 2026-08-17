@@ -1,0 +1,124 @@
+"""Tests for rag_core.config."""
+
+
+
+import pytest
+from rag_core.config import (
+    AgentSettings,
+    IndexingSettings,
+    Neo4jSettings,
+    OpenAISettings,
+    RetrievalSettings,
+    RelationshipDiscoverySettings,
+    Settings,
+    get_settings,
+    make_openai_client,
+)
+
+
+class TestNeo4jSettings:
+    def test_defaults(self):
+        s = Neo4jSettings()
+        assert s.uri == "bolt://localhost:7687"
+        assert s.user == "neo4j"
+        assert s.password == "neo4j"
+
+    def test_env_override(self, monkeypatch):
+        monkeypatch.setenv("NEO4J_URI", "bolt://custom:7688")
+        s = Neo4jSettings()
+        assert s.uri == "bolt://custom:7688"
+
+
+class TestOpenAISettings:
+    def test_defaults(self):
+        s = OpenAISettings()
+        assert s.embedding_model == "text-embedding-3-small"
+        assert s.embedding_dimensions == 1536
+        # Specialized LLMs
+        assert s.router_model == "deepseek-v4-flash"
+        assert s.cypher_model == "deepseek-v4-flash"
+        assert s.corrector_model == "deepseek-v4-flash"
+        assert s.synthesis_model == "deepseek-v4-flash"
+        assert s.llm_temperature == 0.0
+
+    def test_env_override(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test-123")
+        s = OpenAISettings()
+        assert s.api_key == "sk-test-123"
+
+    def test_relationship_discovery_model_default(self):
+        s = OpenAISettings()
+        assert s.relationship_discovery_model == "deepseek-v4-flash"
+
+
+class TestRelationshipDiscoverySettings:
+    def test_min_frequency_default(self):
+        s = RelationshipDiscoverySettings()
+        assert s.min_frequency == 1
+
+
+class TestIndexingSettings:
+    def test_defaults(self):
+        s = IndexingSettings()
+        assert s.chunk_size == 1000
+        assert s.chunk_overlap == 200
+        assert s.skeleton_beta == 0.25
+        assert s.knn_k == 10
+        assert s.pagerank_damping == 0.85
+
+    def test_env_override(self, monkeypatch):
+        monkeypatch.setenv("INDEXING_SKELETON_BETA", "0.3")
+        s = IndexingSettings()
+        assert s.skeleton_beta == 0.3
+
+
+class TestRetrievalSettings:
+    def test_defaults(self):
+        s = RetrievalSettings()
+        assert s.top_k_vector == 10
+        assert s.top_k_final == 10
+        assert s.vector_threshold == 0.5
+        assert s.max_hops == 3
+        assert s.ppr_alpha == 0.15
+
+
+class TestAgentSettings:
+    def test_defaults(self):
+        s = AgentSettings()
+        assert s.max_retries == 2
+        assert s.relevance_threshold == 2.0
+
+
+class TestSettings:
+    def test_nested_settings(self):
+        s = Settings()
+        assert isinstance(s.neo4j, Neo4jSettings)
+        assert isinstance(s.openai, OpenAISettings)
+        assert isinstance(s.indexing, IndexingSettings)
+        assert isinstance(s.retrieval, RetrievalSettings)
+        assert isinstance(s.agent, AgentSettings)
+        assert s.log_level == "INFO"
+
+    def test_get_settings_returns_instance(self):
+        s = get_settings()
+        assert isinstance(s, Settings)
+
+
+class TestMakeOpenaiClient:
+    def test_raises_when_no_key_and_no_base_url(self):
+        cfg = Settings()
+        cfg.openai = OpenAISettings(api_key="", base_url="")
+        with pytest.raises(ValueError, match="OPENAI_API_KEY or OPENAI_BASE_URL"):
+            make_openai_client(cfg)
+
+    def test_works_with_api_key(self):
+        cfg = Settings()
+        cfg.openai = OpenAISettings(api_key="sk-test-key", base_url="")
+        client = make_openai_client(cfg)
+        assert client is not None
+
+    def test_works_with_base_url_only(self):
+        cfg = Settings()
+        cfg.openai = OpenAISettings(api_key="", base_url="http://localhost:4000/v1")
+        client = make_openai_client(cfg)
+        assert client is not None

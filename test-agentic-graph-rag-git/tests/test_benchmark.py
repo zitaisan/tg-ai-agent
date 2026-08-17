@@ -1,0 +1,186 @@
+"""Tests for benchmark.runner and benchmark.compare."""
+
+from benchmark.compare import accuracy_by_type, compare_modes, compute_metrics
+from benchmark.runner import (
+    MODES,
+    _is_global_query,
+    _keyword_overlap,
+    _needs_comprehensive,
+    load_questions,
+)
+
+# ---------------------------------------------------------------------------
+# load_questions
+# ---------------------------------------------------------------------------
+
+class TestLoadQuestions:
+    def test_loads_all(self):
+        qs = load_questions()
+        assert len(qs) == 30
+
+    def test_has_required_fields(self):
+        qs = load_questions()
+        for q in qs:
+            assert "id" in q
+            assert "question" in q
+            assert "type" in q
+            assert "keywords" in q
+
+    def test_all_types_covered(self):
+        qs = load_questions()
+        types = {q["type"] for q in qs}
+        assert types == {"simple", "relation", "multi_hop", "global", "temporal"}
+
+    def test_doc1_and_doc2_present(self):
+        qs = load_questions()
+        doc1 = [q for q in qs if q["id"] <= 15]
+        doc2 = [q for q in qs if q["id"] > 15]
+        assert len(doc1) == 15
+        assert len(doc2) == 15
+
+
+class TestIsGlobalQuery:
+    def test_russian_all(self):
+        assert _is_global_query("Перечисли все компоненты архитектуры")
+        assert _is_global_query("Опиши все слои MeaningHub")
+        assert _is_global_query("Резюмируй все методы интеграции")
+        assert _is_global_query("Дай обзор хранения данных")
+
+    def test_english_all(self):
+        assert _is_global_query("List all components of the architecture")
+        assert _is_global_query("Describe all layers of MeaningHub")
+        assert _is_global_query("Summarize all methods")
+
+    def test_non_global(self):
+        assert not _is_global_query("Что такое онтология?")
+        assert not _is_global_query("How does Neo4j work?")
+        assert not _is_global_query("When was GraphRAG introduced?")
+
+
+class TestNeedsComprehensive:
+    def test_global_queries(self):
+        assert _needs_comprehensive("Перечисли все компоненты")
+        assert _needs_comprehensive("List all components")
+
+    def test_mention_queries_russian(self):
+        assert _needs_comprehensive("Какие фреймворки для графовых баз знаний упоминаются?")
+        assert _needs_comprehensive("Какие инструменты упоминаются в документе?")
+        assert _needs_comprehensive("Какие технологии упоминаются?")
+
+    def test_mention_queries_english(self):
+        assert _needs_comprehensive("What frameworks are mentioned?")
+        assert _needs_comprehensive("What tools are described in the document?")
+
+    def test_non_comprehensive(self):
+        assert not _needs_comprehensive("Что такое онтология?")
+        assert not _needs_comprehensive("How does Neo4j work?")
+
+
+class TestKeywordOverlap:
+    def test_full_overlap(self):
+        assert _keyword_overlap("Graphiti and Cognee are frameworks", ["Graphiti", "Cognee"]) == 1.0
+
+    def test_partial_overlap(self):
+        assert _keyword_overlap("Graphiti is a framework", ["Graphiti", "Cognee"]) == 0.5
+
+    def test_no_overlap(self):
+        assert _keyword_overlap("Neo4j is great", ["Graphiti", "Cognee"]) == 0.0
+
+    def test_empty_keywords(self):
+        assert _keyword_overlap("some text", []) == 0.0
+
+    def test_case_insensitive(self):
+        assert _keyword_overlap("graphiti is mentioned", ["Graphiti"]) == 1.0
+
+
+# ---------------------------------------------------------------------------
+# MODES
+# ---------------------------------------------------------------------------
+
+class TestModes:
+    def test_six_modes(self):
+        assert len(MODES) == 6
+        assert set(MODES.keys()) == {
+            "vector", "cypher", "hybrid", "agent_pattern", "agent_llm", "agent_mangle",
+        }
+
+
+# ---------------------------------------------------------------------------
+# compute_metrics
+# ---------------------------------------------------------------------------
+
+class TestComputeMetrics:
+    def test_empty(self):
+        m = compute_metrics([])
+        assert m["accuracy"] == 0.0
+        assert m["total"] == 0
+
+    def test_all_pass(self):
+        results = [
+            {"passed": True, "confidence": 0.8, "latency": 1.0, "retries": 0},
+            {"passed": True, "confidence": 0.9, "latency": 2.0, "retries": 1},
+        ]
+        m = compute_metrics(results)
+        assert m["accuracy"] == 1.0
+        assert m["correct"] == 2
+        assert m["avg_confidence"] == 0.85
+        assert m["avg_latency"] == 1.5
+        assert m["avg_retries"] == 0.5
+
+    def test_partial(self):
+        results = [
+            {"passed": True, "confidence": 0.8, "latency": 1.0, "retries": 0},
+            {"passed": False, "confidence": 0.3, "latency": 2.0, "retries": 2},
+        ]
+        m = compute_metrics(results)
+        assert m["accuracy"] == 0.5
+        assert m["correct"] == 1
+        assert m["total"] == 2
+
+
+# ---------------------------------------------------------------------------
+# compare_modes
+# ---------------------------------------------------------------------------
+
+class TestCompareModes:
+    def test_generates_rows(self):
+        all_results = {
+            "vector": [
+                {"passed": True, "confidence": 0.8, "latency": 1.0, "retries": 0},
+            ],
+            "hybrid": [
+                {"passed": False, "confidence": 0.3, "latency": 2.0, "retries": 1},
+            ],
+        }
+        rows = compare_modes(all_results)
+        assert len(rows) == 2
+        assert rows[0]["Mode"] == "vector"
+        assert rows[1]["Mode"] == "hybrid"
+        assert "Accuracy" in rows[0]
+        assert "Avg Confidence" in rows[0]
+
+    def test_empty_results(self):
+        rows = compare_modes({})
+        assert rows == []
+
+
+# ---------------------------------------------------------------------------
+# accuracy_by_type
+# ---------------------------------------------------------------------------
+
+class TestAccuracyByType:
+    def test_breakdown(self):
+        all_results = {
+            "vector": [
+                {"type": "simple", "passed": True},
+                {"type": "simple", "passed": False},
+                {"type": "relation", "passed": True},
+            ],
+        }
+        breakdown = accuracy_by_type(all_results)
+        assert breakdown["vector"]["simple"] == 0.5
+        assert breakdown["vector"]["relation"] == 1.0
+
+    def test_empty(self):
+        breakdown = accuracy_by_type({})
+        assert breakdown == {}

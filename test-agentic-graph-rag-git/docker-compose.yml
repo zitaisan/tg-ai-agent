@@ -1,0 +1,64 @@
+services:
+
+  neo4j:
+    image: neo4j:5.15
+    restart: unless-stopped
+
+    expose:
+      - "7474"
+      - "7687"
+
+    environment:
+      - NEO4J_AUTH=
+      - NEO4J_server_config_strict__validation_enabled=false
+      - NEO4J_dbms_security_auth_max__failed__attempts=1000
+
+    volumes:
+      - rag_test_neo4j_data:/data
+      - rag_test_neo4j_logs:/logs
+
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+
+    restart: unless-stopped
+
+    expose:
+      - "8506"
+
+    env_file:
+      - ./config/runtime.env
+      - .env
+
+    depends_on:
+      - neo4j
+
+    volumes:
+      - ./data:/app/data
+      - ./config/runtime.env:/app/config/runtime.env
+
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+
+    ports:
+      - "8080:80"
+      - "7475:7474"
+      - "7688:7687"
+
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
+
+    depends_on:
+      - ui
+      - neo4j
+
+
+volumes:
+
+  rag_test_neo4j_data:
+  rag_test_neo4j_logs:

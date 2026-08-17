@@ -1,0 +1,38 @@
+.env
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.pytest_cache/
+.ruff_cache/
+data/*.pdf
+data/*.docx
+.venv/
+venv/
+
+# Playwright MCP logs
+.playwright-mcp/
+
+# Screenshots
+*.png
+
+# Source documents (ingestion input, not code)
+docs/*.pdf
+docs/*.txt
+docs/plans/
+
+# Old/intermediate benchmark results (keep only results.json + questions.json)
+benchmark/results_v*.json
+benchmark/results_q*.json
+
+# Article drafts (published on Medium EN + Habr RU)
+docs/MEDIUM_ARTICLE_EN.md
+docs/MEDIUM_ARTICLE_RU.md
+docs/MEDIUM_ARTICLE_RU_S.md
+docs/HABR_ARTICLE.md
+
+# Windows artifacts
+*:Zone.Identifier
